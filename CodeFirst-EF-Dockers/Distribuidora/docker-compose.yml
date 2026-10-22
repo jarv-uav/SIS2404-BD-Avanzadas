@@ -1,0 +1,48 @@
+name: distribuidora
+
+services:
+  # ----------------------------------------------------------
+  # SQL Server 2022 (Developer) con volumen persistente
+  # ----------------------------------------------------------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: distribuidora-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      # SA_PASSWORD es el nombre histórico; MSSQL_SA_PASSWORD es el vigente. Se definen ambos.
+      SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD en el archivo .env}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Define MSSQL_SA_PASSWORD en el archivo .env}
+    ports:
+      - "${MSSQL_HOST_PORT:-1433}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      # $$ evita que Compose interpole: la variable se expande dentro del contenedor.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Aplicación de consola .NET 10: migra, siembra, consulta y termina
+  # ----------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: distribuidora-app:latest
+    container_name: distribuidora-app
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      DOTNET_ENVIRONMENT: "Docker"
+      ConnectionStrings__Distribuidora: "Server=sqlserver,1433;Database=Distribuidora;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True"
+    restart: "no"
+
+volumes:
+  sqlserver-data:
+    name: distribuidora-sqlserver-data

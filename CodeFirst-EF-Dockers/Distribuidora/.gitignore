@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+TestResults/
+# Descomenta si no quieres versionar la contraseña de desarrollo:
+# .env
